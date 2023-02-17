@@ -1,4 +1,5 @@
-import CacheSet
+
+from CacheSet import CacheSet
 import constants as c
 
 
@@ -17,8 +18,8 @@ class Cache:
 
 def logb2(val):
     i = 0
-    assert val>0
-    while val>0:
-        i=i+1
-        val=val>>1
-    return i-1
+    assert val > 0
+    while val > 0:
+        i += 1
+        val = val >> 1
+    return i - 1
