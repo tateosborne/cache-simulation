@@ -1,5 +1,6 @@
 
-import CacheBlock
+from CacheBlock import CacheBlock
+
 
 class CacheSet:
     """
