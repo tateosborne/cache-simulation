@@ -15,24 +15,36 @@ def read_word(address):
     Returns:
         word: the requested word
     """
+    
+    # var to store the status of whether the access was a cache hit or miss
     outcome = ""
     
     # compute variables from address for cache/memory access
-    offset = address % c.NUM_SETS
-    index = address // c.CACHE_BLOCK_SIZE
+    offset = address & 63
+    index = (address >> 6) & 15
     tag = (address >> 10) & 63
-    start_address = index * c.CACHE_BLOCK_SIZE
+    start_address = (address // c.CACHE_BLOCK_SIZE) * c.CACHE_BLOCK_SIZE
     
     # go to the index in the cache where the address would be if in the cache
     target_set = cache.sets[index]
     # for a direct-mapped cache, there is one block in each set
-    target_block = target_set[0]
+    target_block = target_set.blocks[0]
     # check if the tag in this block in the cache
     if target_block.tag == tag:
         # this is cache hit, so retrieve the data from the cache and set hit flag
         word = target_block.data[offset]
         outcome = "hit"
     else:
+        # for direct mapped, tag queue consists of one tag, as block index = 0.
+        # replace the tag with the new one
+        print(f"evict tag {target_set.tag_queue[0]} in block index 0")
+        print(f"read in ({start_address} - {start_address+c.CACHE_BLOCK_SIZE-1})")
+        # update the tag queue, which is going to have one element for direct-mapped
+        target_set.tag_queue[0] = tag
+        
+        # set the valid flag so we know the cache is loaded accurately
+        target_block.valid = True
+        
         # this is a cache miss, so go to memory for the value
         word = memory[address] + 256*memory[address+1] + 256*256*memory[address+2] + 256*256*256*memory[address+3]
         # load the block into the cache
@@ -41,15 +53,12 @@ def read_word(address):
             byte = 8*i
             # store the block in the cache
             target_block.data[i] = memory[start_address+(byte)]
-                
-        # update the tag queue, which is going to have one element for direct-mapped
-        target_set.tag_queue[0] = tag
-        # set the valid flag so we know the cache is loaded accurately
-        target_block.valid = True
-        outcome = "miss"
+        
+        outcome = "miss + replace"
     
-    print(f"read {outcome} [ addr={address} index={index} tag={tag}: word={word} ({start_address} - {start_address + c.CACHE_BLOCK_SIZE - 1}) ]")
+    print(f"read {outcome} [ addr={address} index={index} tag={tag}: word={word} ({start_address} - {start_address+c.CACHE_BLOCK_SIZE-1}) ]")
     print(f"{target_set.tag_queue}")
+    print(f"address = {address} {bin(address)}; word = {word}")
     
     return word
 
