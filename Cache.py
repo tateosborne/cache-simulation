@@ -7,6 +7,7 @@ class Cache:
     """
     Data structure to represent a cache for the simulation
     """
+
     def __init__(self, num_sets, associativity, cache_block_size):
         self.write_through = False
         self.sets = [CacheSet(cache_block_size, associativity) for i in range(num_sets)]
