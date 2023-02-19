@@ -1,5 +1,5 @@
 
-from Cache import Cache
+from Cache import Cache, logb2
 import constants as c
 
 
@@ -15,6 +15,10 @@ def read_word(address):
     Returns:
         word: the requested word
     """
+    
+    # ensure address is 4-bit aligned or in memory range, exit program as address is invalid
+    assert address % 4 == 0
+    assert 0 <= address < c.MEMORY_SIZE
     
     # var to store the status of whether the access was a cache hit or miss
     outcome = ""
@@ -32,13 +36,15 @@ def read_word(address):
     # check if the tag in this block in the cache
     if target_block.tag == tag:
         # this is cache hit, so retrieve the data from the cache and set hit flag
-        word = target_block.data[offset]
+        word = target_block.data[offset] + (target_block.data[offset + 1] << 8) +\
+               (target_block.data[offset + 2] << 16) + (target_block.data[offset + 3] << 24)
         outcome = "hit"
     else:
         # for direct mapped, tag queue consists of one tag, as block index = 0.
         # replace the tag with the new one
-        print(f"evict tag {target_set.tag_queue[0]} in block index 0")
-        print(f"read in ({start_address} - {start_address+c.CACHE_BLOCK_SIZE-1})")
+        if tag > -1:
+            print(f"evict tag {target_set.tag_queue[0]} in block index 0")
+            print(f"read in ({start_address} - {start_address+c.CACHE_BLOCK_SIZE-1})")
         # update the tag queue, which is going to have one element for direct-mapped
         target_set.tag_queue[0] = tag
         
@@ -46,21 +52,21 @@ def read_word(address):
         target_block.valid = True
         
         # this is a cache miss, so go to memory for the value
-        word = memory[address] + 256*memory[address+1] + 256*256*memory[address+2] + 256*256*256*memory[address+3]
+        word = memory[address] + c.MAX_BYTE*memory[address+1] + c.MAX_BYTE*c.MAX_BYTE*memory[address+2] +\
+               c.MAX_BYTE*c.MAX_BYTE*c.MAX_BYTE*memory[address+3]
+               
         # load the block into the cache
-        # iterate through memory starting at the start address for the block
-        for i in range(64):
-            byte = 8*i
-            # store the block in the cache
-            target_block.data[i] = memory[start_address+(byte)]
+        target_block.data = memory[start_address : start_address+c.CACHE_BLOCK_SIZE]
         
         outcome = "miss + replace"
     
-    print(f"read {outcome} [ addr={address} index={index} tag={tag}: word={word} ({start_address} - {start_address+c.CACHE_BLOCK_SIZE-1}) ]")
+    # print output of each read
+    print(f"read {outcome} [addr={address} index={index} tag={tag}: word={word} ({start_address} -\
+           {start_address+c.CACHE_BLOCK_SIZE-1})]")
     print(f"{target_set.tag_queue}")
-    print(f"address = {address} {bin(address)}; word = {word}")
+    print(f"address = {address} {logb2(address)}; word = {word}")
     
-    return word
+    return
 
 
 ##########################
@@ -70,6 +76,13 @@ def read_word(address):
 # initialize memory and cache
 memory = bytearray(c.MEMORY_SIZE)
 cache = Cache(c.NUM_SETS, c.ASSOCIATIVITY, c.CACHE_BLOCK_SIZE)
+
+# initialize memory so that each four-byte aligned value is its index
+for i in range(0, c.MAX_BYTE+1, 4):
+    memory[i] = i & c.MAX_BYTE
+    memory[i+1] = (i >> 8) & c.MAX_BYTE
+    memory[i+2] = (i >> 16) & c.MAX_BYTE
+    memory[i+3] = (i >> 24) & c.MAX_BYTE
 
 # print cache parameters
 print("--------------------------------")
@@ -82,7 +95,7 @@ print(f"tag length: {c.TAG_LENGTH}")
 print("--------------------------------")
 
 # simulate the cache with read operations and print output
-word = read_word(46916)
+read_word(46916)
 read_word(46932)
 read_word(12936)
 read_word(13964)
