@@ -36,8 +36,7 @@ def read_word(address):
     # check if the tag in this block in the cache
     if target_block.tag == tag:
         # this is cache hit, so retrieve the data from the cache and set hit flag
-        word = target_block.data[offset] + (target_block.data[offset + 1] << 8) +\
-               (target_block.data[offset + 2] << 16) + (target_block.data[offset + 3] << 24)
+        word = target_block.data[offset] + (target_block.data[offset + 1] << 8) + (target_block.data[offset + 2] << 16) + (target_block.data[offset + 3] << 24)
         outcome = "hit"
         
     else:
@@ -54,8 +53,7 @@ def read_word(address):
         target_block.valid = True
         
         # this is a cache miss, so go to memory for the value
-        word = memory[address] + c.MAX_BYTE*memory[address+1] + c.MAX_BYTE*c.MAX_BYTE*memory[address+2] +\
-               c.MAX_BYTE*c.MAX_BYTE*c.MAX_BYTE*memory[address+3]
+        word = memory[address] + c.MAX_BYTE*memory[address+1] + c.MAX_BYTE*c.MAX_BYTE*memory[address+2] + c.MAX_BYTE*c.MAX_BYTE*c.MAX_BYTE*memory[address+3]
                
         # load the block into the cache
         target_block.data = memory[start_address : start_address+c.CACHE_BLOCK_SIZE]
@@ -63,8 +61,7 @@ def read_word(address):
         outcome = "miss + replace"
     
     # print output of each read
-    print(f"read {outcome} [addr={address} index={index} tag={tag}: word={word} ({start_address} -\
-           {start_address+c.CACHE_BLOCK_SIZE-1})]")
+    print(f"read {outcome} [addr={address} index={index} tag={tag}: word={word} ({start_address} - {start_address+c.CACHE_BLOCK_SIZE-1})]")
     print(f"{target_set.tag_queue}")
     print(f"address = {address} {logb2(address)}; word = {word}")
     
