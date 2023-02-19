@@ -39,13 +39,15 @@ def read_word(address):
         word = target_block.data[offset] + (target_block.data[offset + 1] << 8) +\
                (target_block.data[offset + 2] << 16) + (target_block.data[offset + 3] << 24)
         outcome = "hit"
+        
     else:
-        # for direct mapped, tag queue consists of one tag, as block index = 0.
-        # replace the tag with the new one
-        if tag > -1:
+        # print tag of block being evicted and the new block's tag
+        if target_set.tag_queue[0] != -1:
             print(f"evict tag {target_set.tag_queue[0]} in block index 0")
             print(f"read in ({start_address} - {start_address+c.CACHE_BLOCK_SIZE-1})")
-        # update the tag queue, which is going to have one element for direct-mapped
+            
+        # for direct mapped, tag queue consists of one tag, as block index = 0.
+        # replace the tag with the new one
         target_set.tag_queue[0] = tag
         
         # set the valid flag so we know the cache is loaded accurately
