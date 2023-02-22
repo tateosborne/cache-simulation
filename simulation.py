@@ -77,11 +77,11 @@ memory = bytearray(c.MEMORY_SIZE)
 cache = Cache(c.NUM_SETS, c.ASSOCIATIVITY, c.CACHE_BLOCK_SIZE)
 
 # initialize memory so that each four-byte aligned value is its index
-for i in range(0, c.MAX_BYTE+1, 4):
-    memory[i] = i & c.MAX_BYTE
-    memory[i+1] = (i >> 8) & c.MAX_BYTE
-    memory[i+2] = (i >> 16) & c.MAX_BYTE
-    memory[i+3] = (i >> 24) & c.MAX_BYTE
+for i in range(0, c.MEMORY_SIZE, 4):
+    memory[i] = i & (c.MAX_BYTE-1)
+    memory[i+1] = (i >> 8) & (c.MAX_BYTE-1)
+    memory[i+2] = (i >> 16) & (c.MAX_BYTE-1)
+    memory[i+3] = (i >> 24) & (c.MAX_BYTE-1)
 
 # print cache parameters
 print("--------------------------------")
