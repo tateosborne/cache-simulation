@@ -1,5 +1,5 @@
 
-from Cache import Cache, logb2
+from Cache import Cache
 import constants as c
 
 
@@ -24,15 +24,17 @@ def read_word(address):
     outcome = ""
     
     # compute variables from address for cache/memory access
-    offset = address & 63
-    index = (address >> 6) & 15
-    tag = (address >> 10) & 63
+    offset = address & (c.CACHE_BLOCK_SIZE-1)
+    index = (address >> c.logb2(c.CACHE_BLOCK_SIZE)) & (c.NUM_BLOCKS-1)
+    tag = address >> (c.logb2(c.CACHE_BLOCK_SIZE) + c.logb2(c.NUM_SETS))
     start_address = (address // c.CACHE_BLOCK_SIZE) * c.CACHE_BLOCK_SIZE
     
     # go to the index in the cache where the address would be if in the cache
     target_set = cache.sets[index]
+    
     # for a direct-mapped cache, there is one block in each set
     target_block = target_set.blocks[0]
+    
     # check if the tag in this block in the cache
     if target_block.tag == tag:
         # this is cache hit, so retrieve the data from the cache and set hit flag
@@ -63,7 +65,7 @@ def read_word(address):
     # print output of each read
     print(f"read {outcome} [addr={address} index={index} tag={tag}: word={word} ({start_address} - {start_address+c.CACHE_BLOCK_SIZE-1})]")
     print(f"{target_set.tag_queue}")
-    print(f"address = {address} {logb2(address)}; word = {word}")
+    print(f"address = {address} {c.logb2(address)}; word = {word}")
     
     return
 
