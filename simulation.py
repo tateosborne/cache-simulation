@@ -9,65 +9,102 @@ def read_word(address):
     If not, go to memory, store the block containing the word in the cache
 
     Args:
-        cache: the cache
-        address: the address for the word to be returned
+        address: the address for the word to be printed
     
     Returns:
-        word: the requested word
+        None
     """
     
     # ensure address is 4-bit aligned or in memory range, exit program as address is invalid
     assert address % 4 == 0
     assert 0 <= address < c.MEMORY_SIZE
     
-    # var to store the status of whether the access was a cache hit or miss
-    outcome = ""
+    # flags for control flow during cache and memory accesses
+    hit = False
+    stored = False
+    block_idx = -1
     
     # compute variables from address for cache/memory access
     offset = address & (c.CACHE_BLOCK_SIZE-1)
-    index = (address >> c.logb2(c.CACHE_BLOCK_SIZE)) & (c.NUM_BLOCKS-1)
+    index = (address >> c.logb2(c.CACHE_BLOCK_SIZE)) & (c.NUM_SETS-1)
     tag = address >> (c.logb2(c.CACHE_BLOCK_SIZE) + c.logb2(c.NUM_SETS))
     start_address = (address // c.CACHE_BLOCK_SIZE) * c.CACHE_BLOCK_SIZE
     
-    # go to the index in the cache where the address would be if in the cache
-    target_set = cache.sets[index]
+    # go to the set in the cache using the index from the address
+    cache_set = cache.sets[index]
     
-    # for a direct-mapped cache, there is one block in each set
-    target_block = target_set.blocks[0]
+    # loop through the blocks in the set
+    for bidx, block in enumerate(cache_set.blocks):
+        # check if the data is in the cache block by comparing tags
+        # if the tag is in the set, then we have a cache hit
+        if block.tag == tag:
+            # save block index
+            block_idx = bidx
+            # grab the word from the block
+            word = block.data[offset] + (block.data[offset + 1] << 8) + (block.data[offset + 2] << 16) + (block.data[offset + 3] << 24)
+            # update the tag queue to make sure this block's tag is moved to the front
+            cache_set.tag_queue.remove(tag)
+            cache_set.tag_queue.append(tag)
+            # indicate we found the block in the cache
+            hit = True
     
-    # check if the tag in this block in the cache
-    if target_block.tag == tag:
-        # this is cache hit, so retrieve the data from the cache and set hit flag
-        word = target_block.data[offset] + (target_block.data[offset + 1] << 8) + (target_block.data[offset + 2] << 16) + (target_block.data[offset + 3] << 24)
-        outcome = "hit"
-        
-    else:
-        # print tag of block being evicted and the new block's tag
-        if target_set.tag_queue[0] != -1:
-            print(f"evict tag {target_set.tag_queue[0]} in block index 0")
-            print(f"read in ({start_address} - {start_address+c.CACHE_BLOCK_SIZE-1})")
-            
-        # for direct mapped, tag queue consists of one tag, as block index = 0.
-        # replace the tag with the new one
-        target_set.tag_queue[0] = tag
-        
-        # set the valid flag so we know the cache is loaded accurately
-        target_block.valid = True
-        
-        # this is a cache miss, so go to memory for the value
+    # if the tag is not in the set, then we have to go to memory for cache miss
+    if not hit:
+        # grab the word and block (range of data) from memory
         word = memory[address] + c.MAX_BYTE*memory[address+1] + c.MAX_BYTE*c.MAX_BYTE*memory[address+2] + c.MAX_BYTE*c.MAX_BYTE*c.MAX_BYTE*memory[address+3]
-               
-        # load the block into the cache
-        target_block.data = memory[start_address : start_address+c.CACHE_BLOCK_SIZE]
+        # loop through the blocks in the set
+        for bidx, block in enumerate(cache_set.blocks):
+            # determine whether every block is filled (check valid attribute)
+            if not block.valid and not stored:
+                # save block index
+                block_idx = bidx
+                # if open block exists, store the data from memory in the block and update the attributes
+                block.data = memory[start_address : start_address+c.CACHE_BLOCK_SIZE]
+                block.tag = tag
+                cache_set.tag_queue.remove(-1)
+                cache_set.tag_queue.append(tag)
+                block.valid = True
+                stored = True
+        # if no open block exists, we must evict one
+        if not stored:
+            # determine the LRU block to evit by using the tag queue
+            evicted = cache_set.tag_queue.pop(0)
+            # find the block in the set
+            for bidx, block in enumerate(cache_set.blocks):
+                if block.tag == evicted:
+                    # save block index
+                    block_idx = bidx
+                    # replace the block with the new data and update the tag queue, set valid, and other attributes
+                    block.data = block.data = memory[start_address : start_address+c.CACHE_BLOCK_SIZE]
+                    block.tag = tag
+                    cache_set.tag_queue.append(tag)
+                    block.valid = True
+                    stored = True
+            # print info about block eviction
+            print(f"evict tag {evicted} in block index {block_idx}")
+            print(f"read in ({start_address}-{start_address+c.CACHE_BLOCK_SIZE-1})")
         
-        outcome = "miss + replace"
-    
-    # print output of each read
-    print(f"read {outcome} [addr={address} index={index} tag={tag}: word={word} ({start_address} - {start_address+c.CACHE_BLOCK_SIZE-1})]")
-    print(f"{target_set.tag_queue}")
-    print(f"address = {address} {c.logb2(address)}; word = {word}")
-    
+    # print the output of the access
+    print(f"read {'hit' if hit else 'miss + replace'} :: [ addr={address} index={index} block_index={block_idx} tag={tag} block_range=({start_address}-{start_address+c.CACHE_BLOCK_SIZE-1}) ]")
+    print(f"  tag_queue: {cache_set.tag_queue}")
+    print(f"  ADDRESS={address} {c.logb2(address)}; WORD={word}\n")
+
     return
+
+def write_word(address, word):
+    """
+    Writes the specified word to the specified address, and will update the just the
+    cache or cache and memory depending on whether it's a write-back or write-through
+
+    Args:
+        address: the location at which the word will be written
+        word: the word to write
+    
+    Returns:
+        None
+    """
+    
+    pass
 
 
 ##########################

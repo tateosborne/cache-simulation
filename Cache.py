@@ -5,7 +5,7 @@ import constants as c
 
 class Cache:
     """
-    Data structure to represent a cache for the simulation
+    Data structure to represent the cache for the simulation
     """
 
     def __init__(self, num_sets, associativity, cache_block_size):
