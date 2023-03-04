@@ -16,4 +16,3 @@ class Cache:
         self.cache_block_size_bits = c.logb2(c.CACHE_BLOCK_SIZE)
         self.index_length = c.logb2(c.NUM_SETS)
         self.block_offset_length = c.logb2(c.CACHE_BLOCK_SIZE)
-

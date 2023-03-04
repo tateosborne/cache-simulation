@@ -8,13 +8,12 @@ def logb2(val):
         val = val >> 1
     return i - 1
 
-# cache properties
+# cache/memory settings
 MEMORY_SIZE = 65536  # 2^16
+ADDRESS_LENGTH = 65536
 CACHE_SIZE = 1024  # 2^10
 CACHE_BLOCK_SIZE = 64  # 2^6
-ASSOCIATIVITY = 2
-
-ADDRESS_LENGTH = 65536
+ASSOCIATIVITY = 4
 
 # calculated features
 NUM_BLOCKS = CACHE_SIZE // CACHE_BLOCK_SIZE
