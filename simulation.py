@@ -75,21 +75,32 @@ def read_word(address):
                 if block.tag == evicted_tag:
                     # save block index
                     block_idx = bidx
+                    evicted_block = cache_set.blocks[block_idx]
                     # replace the block with the new data and update the tag queue, set valid, and other attributes
                     block.data = memory[start_address : start_address+c.CACHE_BLOCK_SIZE]
                     block.tag = tag
                     cache_set.tag_queue.append(tag)
                     block.valid = True
                     eviction = True
+                    # check if write-back or write-through cache
+                    # if write-back and dirty bit of evicted block is flagged, update memory
+                    if not cache.write_through and evicted_block.dirty:
+                        evicted_start_addr = (evicted_tag << c.logb2(c.NUM_SETS)) + index
+                        evicted_start_addr <<= c.logb2(c.CACHE_BLOCK_SIZE)
+                        # write evited block to memory
+                        for i in range(0, c.CACHE_BLOCK_SIZE, 4):
+                            memory[evicted_start_addr+i] = evicted_block.data[i]
                     
     # print the output of the access
-    print(f"read {'hit' if hit else 'miss + replace'} [addr={address} index={index} block_index={block_idx} tag={tag} ({start_address}-{start_address+c.CACHE_BLOCK_SIZE-1})]")
+    print(f"\nread {'hit' if hit else 'miss + replace'} [addr={address} index={index} block_index={block_idx} tag={tag}]: word={word} ({start_address}-{start_address+c.CACHE_BLOCK_SIZE-1})")
     if eviction:
-        # print info about block eviction
         print(f"evict tag {evicted_tag} in block index {block_idx}")
+    if not hit:
         print(f"read in ({start_address}-{start_address+c.CACHE_BLOCK_SIZE-1})")
+    if not cache.write_through and eviction and evicted_block.dirty:
+        print(f"write back ({evicted_start_addr}-{evicted_start_addr+c.CACHE_BLOCK_SIZE-1})")
     print(f"tag_queue for set {index}: {cache_set.tag_queue}")
-    print(f"address={address}; word={word}\n")
+    print(f"address={address}; word={word}")
 
     return
 
@@ -134,9 +145,9 @@ def write_word(address, word):
             block_idx = bidx
             # write the word to the block
             block.data[offset] = word
-            block.data[offset + 1] = word >> 8
-            block.data[offset + 2] = word >> 16
-            block.data[offset + 3] = word >> 24
+            block.data[offset+1] = word >> 8
+            block.data[offset+2] = word >> 16
+            block.data[offset+3] = word >> 24
             # update the tag queue to make sure this block's tag is moved to the front
             cache_set.tag_queue.remove(tag)
             cache_set.tag_queue.append(tag)
@@ -154,57 +165,62 @@ def write_word(address, word):
             # indicate we found the block in the cache
             hit = True
 
-        # if the tag is not in the set, then we have to go to memory for cache miss
-        if not hit:
-            # write to the correct spot in memory
-            memory[address] = word
-            memory[address+1] = word // (c.MAX_BYTE)
-            memory[address+2] = word // (c.MAX_BYTE*c.MAX_BYTE)
-            memory[address+3] = word // (c.MAX_BYTE*c.MAX_BYTE*c.MAX_BYTE)
-            # loop through the blocks in the set
+    # if the tag is not in the set, then we have to go to memory for cache miss
+    if not hit:
+        # write to the correct spot in memory
+        memory[address] = word
+        memory[address+1] = word // (c.MAX_BYTE)
+        memory[address+2] = word // (c.MAX_BYTE*c.MAX_BYTE)
+        memory[address+3] = word // (c.MAX_BYTE*c.MAX_BYTE*c.MAX_BYTE)
+        # loop through the blocks in the set
+        for bidx, block in enumerate(cache_set.blocks):
+            # determine whether every block is filled (check valid attribute)
+            # if open block exists, store the data from memory in the block and update the attributes
+            if not block.valid and not stored:
+                # save block index
+                block_idx = bidx
+                block.data = memory[start_address : start_address+c.CACHE_BLOCK_SIZE]
+                block.tag = tag
+                cache_set.tag_queue.remove(-1)
+                cache_set.tag_queue.append(tag)
+                block.valid = True
+                stored = True
+        # if no open block exists, we must evict one
+        if not stored:
+            # determine the LRU block to evict by using the tag queue
+            evicted_tag = cache_set.tag_queue.pop(0)
+            # find the block in the set
             for bidx, block in enumerate(cache_set.blocks):
-                # determine whether every block is filled (check valid attribute)
-                # if open block exists, store the data from memory in the block and update the attributes
-                if not block.valid and not stored:
+                if block.tag == evicted_tag:
                     # save block index
                     block_idx = bidx
+                    evicted_block = cache_set.blocks[block_idx]
+                    # replace the block with the new data and update the tag queue, set valid, and other attributes
                     block.data = memory[start_address : start_address+c.CACHE_BLOCK_SIZE]
                     block.tag = tag
-                    cache_set.tag_queue.remove(-1)
                     cache_set.tag_queue.append(tag)
                     block.valid = True
-                    stored = True
-            # if no open block exists, we must evict one
-            if not stored:
-                # determine the LRU block to evict by using the tag queue
-                evicted_tag = cache_set.tag_queue.pop(0)
-                # find the block in the set
-                for bidx, block in enumerate(cache_set.blocks):
-                    if block.tag == evicted_tag:
-                        # save block index
-                        block_idx = bidx
-                        # replace the block with the new data and update the tag queue, set valid, and other attributes
-                        block.data = memory[start_address : start_address+c.CACHE_BLOCK_SIZE]
-                        block.tag = tag
-                        cache_set.tag_queue.append(tag)
-                        block.valid = True
-                        eviction = True
-                        # check if write-back or write-through cache
-                        # if write-back and dirty bit of evicted block is flagged, update memory
-                        if not cache.write_through:
-                            evicted_block = cache_set.blocks[block_idx]
-                            evicted_start_addr = evicted_block.data[0]
-                            # write evited block to memory
-                            for i in range(c.CACHE_BLOCK_SIZE):
-                                memory[evicted_start_addr+i] = evicted_block.data[i]
+                    eviction = True
+                    # check if write-back or write-through cache
+                    # if write-back and dirty bit of evicted block is flagged, update memory
+                    if not cache.write_through and evicted_block.dirty:
+                        evicted_start_addr = (evicted_tag << c.logb2(c.NUM_SETS)) + index
+                        evicted_start_addr <<= c.logb2(c.CACHE_BLOCK_SIZE)
+                        # write evited block to memory
+                        for i in range(c.CACHE_BLOCK_SIZE):
+                            memory[evicted_start_addr+i] = evicted_block.data[i]
                                 
     # print output
-    print(f"write {'hit' if hit else 'miss + replace'} [addr={address} index={index} block_index={block_idx} tag={tag} ({start_address}-{start_address+c.CACHE_BLOCK_SIZE-1})]")
+    print(f"\nwrite {'hit' if hit else 'miss + replace'} [addr={address} index={index} block_index={block_idx} tag={tag}]: word={word} ({start_address}-{start_address+c.CACHE_BLOCK_SIZE-1})")
     if eviction:
-        # print info about block eviction
         print(f"evict tag {evicted_tag} in block index {block_idx}")
+    if not hit:
         print(f"read in ({start_address}-{start_address+c.CACHE_BLOCK_SIZE-1})")
-    print(f"tag_queue for set {index}: {cache_set.tag_queue}\n")
+    if not cache.write_through and eviction and evicted_block.dirty:
+        print(f"write back ({evicted_start_addr}-{evicted_start_addr+c.CACHE_BLOCK_SIZE-1})")
+    print(f"tag_queue for set {index}: {cache_set.tag_queue}")
+    if cache.write_through:
+        print(f"write-through cache: write {word} to memory[{address}]")
     
     return
 
@@ -238,7 +254,7 @@ else:
     print(f"write back")
 print("--------------------------------")
 
-# simulate the cache with read operations and print output
+# simulate the cache with read and write operations and print output
 read_word(1152)
 read_word(2176)
 read_word(3200)
